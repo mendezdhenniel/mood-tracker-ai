@@ -10,37 +10,51 @@ const app = express();
 app.use(cors()); 
 app.use(express.json());
 
-// 1. Dynamic Port: Render will inject 10000 into process.env.PORT
 const PORT = process.env.PORT || 3000;
 
-// 2. Root Route: This fixes the "Cannot GET /" error in your screenshot
+// Root Route (Fixed "Cannot GET /")
 app.get('/', (req, res) => {
     res.send('✅ Mood Tracker API is live and running!');
 });
 
-// 3. POST: Process Mood (3-table schema)
+// NEW: Test DB Route for Part 3 Submission
+app.get('/test-db', async (req, res) => {
+    try {
+        const [rows] = await db.query('SELECT 1 + 1 AS result');
+        res.json({ 
+            status: "Success", 
+            message: "Database is connected!", 
+            data: rows 
+        });
+    } catch (error) {
+        console.error("DB TEST ERROR:", error);
+        res.status(500).json({ 
+            status: "Error", 
+            message: "Database connection failed.", 
+            details: error.message 
+        });
+    }
+});
+
+// POST: Process Mood (3-table schema)
 app.post('/api/moods', async (req, res) => {
     try {
         const { full_name, mood_text } = req.body;
         
-        // Step A: Insert/Find User and get ID
         const [userResult] = await db.query(
             'INSERT INTO USERS (full_name) VALUES (?) ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)', 
             [full_name]
         );
         const userId = userResult.insertId || userResult.id;
 
-        // Step B: Get AI Response
         const ai_message = await getAIResponse(mood_text);
 
-        // Step C: Save Mood Entry
         const [moodResult] = await db.query(
             'INSERT INTO MOOD_ENTRIES (user_id, mood) VALUES (?, ?)',
             [userId, mood_text]
         );
         const moodEntryId = moodResult.insertId;
 
-        // Step D: Save AI Response
         await db.query(
             'INSERT INTO AI_RESPONSES (entry_id, ai_message) VALUES (?, ?)',
             [moodEntryId, ai_message]
